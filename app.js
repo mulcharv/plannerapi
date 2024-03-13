@@ -364,7 +364,13 @@ app.get(
         meal: meal,
         size: size,
       });
-      res.json(ingredient);
+      const newing = await ingredient.save();
+      const newmeal = await Meal.findByIdAndUpdate(
+        meal,
+        { $push: { ingredients: newing } },
+        { returnDocument: "after" },
+      ).exec();
+      res.json(newmeal);
     });
   }),
 );
@@ -384,7 +390,52 @@ app.put("/meals/:mealid/:ingredientid", upload.any(), [
     const errors = validationResult(req);
 
     const meal = await Meal.findById(req.params.mealid).exec();
+
+    if (!errors.isEmpty()) {
+      res.json({
+        errors: erros.array(),
+      });
+      return;
+    } else {
+      let altingredients = meal.ingredients;
+      let ingindx = altingredients.findIndex(
+        (element) => element._id === req.params.ingredientid,
+      );
+      altingredients[ingindx].quantity = Number(req.body.quantity);
+      const updmeal = await Meal.findByIdAndUpdate(
+        req.params.mealid,
+        { $set: { ingredients: altingredients } },
+        { returnDocument: "after" },
+      ).exec();
+      res.json(updmeal);
+    }
   }),
 ]);
+
+app.delete(
+  "/meals/:mealid/:ingredientid",
+  asyncHandler(async (req, res, next) => {
+    let meal = await Meal.findById(req.params.mealid).exec();
+    let altingredients = meal.ingredients;
+    let ingindx = altingredients.findIndex(
+      (element) => element._id === req.params.ingredientid,
+    );
+    altingredients.splice(ingindx, 0);
+    const updmeal = await Meal.findByIdAndUpdate(
+      req.params.mealid,
+      { $set: { ingredients: altingredients } },
+      { returnDocument: "after" },
+    ).exec();
+    res.json(updmeal);
+  }),
+);
+
+app.delete(
+  "/meals/:mealid",
+  asyncHandler(async (req, res, next) => {
+    await Meal.findByIdAndDelete(req.params.mealid).exec();
+    res.json("deleted");
+  }),
+);
 
 module.exports = app;
