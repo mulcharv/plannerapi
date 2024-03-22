@@ -8,6 +8,8 @@ const passport = require("passport");
 const puppeteer = require("puppeteer");
 const LocalStrategy = require("passport-local").Strategy;
 const asyncHandler = require("express-async-handler");
+const ua =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36";
 const {
   body,
   validationResult,
@@ -72,14 +74,6 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
-(async () => {
-  const browser = await puppeteer.launch({
-    headless: false,
-  });
-  const page = await browser.newPage();
-  await page.goto("https://example.com");
-})();
-
 passport.use(
   new LocalStrategy(async (username, password, done) => {
     try {
@@ -136,6 +130,11 @@ app.post("/signup", upload.any(), [
   asyncHandler(async (req, res, next) => {
     const result = validationResult(req);
 
+    const user = new User({
+      username: req.body.username,
+      password: req.body.password,
+    });
+
     if (!result.isEmpty()) {
       return res.json({
         errors: result.array(),
@@ -167,6 +166,8 @@ app.post("/login", upload.any(), async (req, res, next) => {
         const authuser = await User.findOne({
           username: req.body.username,
         }).exec();
+        const body = { _id: authuser._id, username: authuser.username };
+        const token = jwt.sign({ user: body }, secret);
         if (typeof window !== "undefined") {
           localStorage.setItem("jwt", JSON.stringify(token));
         }
@@ -176,6 +177,38 @@ app.post("/login", upload.any(), async (req, res, next) => {
   )(req, res, next);
 });
 
+app.post("/plan", upload.any(), [
+  body("planname", "Please enter a plan name")
+    .trim()
+    .isLength({ min: 1 })
+    .escape(),
+  asyncHandler(async (req, res, next) => {
+    const errors = validationResult(req);
+
+    const plan = new Plan({
+      name: req.body.planname,
+      user: req.body.user,
+    });
+    if (!errors.isEmpty()) {
+      return res.json({
+        plan: plan,
+        errors: errors.array(),
+      });
+    } else {
+      await plan.save();
+      res.json(plan);
+    }
+  }),
+]);
+
+app.get(
+  "/plan/:planid",
+  asyncHandler(async (req, res, next) => {
+    const plan = await Plan.findById(req.params.planid).exec();
+    res.json(plan);
+  }),
+);
+
 app.get(
   "/item/:itemtype/:pageid",
   asyncHandler(async (req, res, next) => {
@@ -184,6 +217,7 @@ app.get(
 
     puppeteer.launch().then(async function (browser) {
       const page = await browser.newPage();
+      page.setUserAgent(ua);
       await page.goto(
         `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
       );
@@ -196,7 +230,7 @@ app.get(
         },
       );
       const pricelist = await page.$$eval(
-        ".product-list > .product-list--list-item > .dtCNPH > .fZWbCY > .bkNhNP > .bcglTg > .product-details--wrapper > .cZskDh > .dSvjUC > .dAXuso > .lcrYKS > form > .beans-buybox__container > .beans-buybox__price-and-actions > .beans-price__container > .beans-price__text",
+        ".beans-price__text",
         function (itemprices) {
           return itemprices.map(function (itemprice) {
             return itemprice.innerText;
@@ -207,7 +241,11 @@ app.get(
         ".product-list > .product-list--list-item > .dtCNPH > .fZWbCY > .bkNhNP > .bcglTg > .product-details--wrapper > .gbIAbl > .hXcydL",
         function (itemlinks) {
           return itemlinks.map(function (itemlink) {
-            return itemlink.href;
+            let href = itemlink.href;
+            let prodindx = href.indexOf("products");
+            let start = prodindx + 9;
+            let productno = href.slice(start);
+            return productno;
           });
         },
       );
@@ -229,7 +267,7 @@ app.get(
   }),
 );
 
-app.post("/meal", upload.any(), [
+app.post("/meal/:planid", upload.any(), [
   body("mealname", "Please enter a meal name")
     .trim()
     .isLength({ min: 1 })
@@ -239,7 +277,8 @@ app.post("/meal", upload.any(), [
 
     const meal = new Meal({
       name: req.body.mealname,
-      user: { type: Schema.Types.ObjectId, ref: "User" },
+      plan: req.params.planid,
+      user: req.body.user,
     });
     if (!errors.isEmpty()) {
       return res.json({
@@ -247,21 +286,30 @@ app.post("/meal", upload.any(), [
         errors: errors.array(),
       });
     } else {
-      await meal.save();
-      res.json(meal);
+      let savedmeal = await meal.save();
+      let plan = await Plan.findByIdAndUpdate(
+        req.params.planid,
+        {
+          $push: { meals: savedmeal },
+        },
+        { returnDocument: "after" },
+      ).exec();
+
+      res.json(plan);
     }
   }),
 ]);
 
 app.get(
-  "/item/:itemlink/:mealid",
+  "/item/info/:itemlink/:mealid/:planid",
   asyncHandler(async (req, res, next) => {
     const link = req.params.itemlink;
     const meal = req.params.mealid;
-
+    const plan = req.params.planid;
     puppeteer.launch().then(async function (browser) {
       const page = await browser.newPage();
-      await page.goto(`${link}`);
+      page.setUserAgent(ua);
+      await page.goto(`https://www.tesco.com/groceries/en-GB/products/${link}`);
       const acceptables = [
         "Fresh Food",
         "Bakery",
@@ -282,8 +330,9 @@ app.get(
           .status(403)
           .json({ message: "Not an accepted food or drink for meal plan" });
       }
-      const title = await page.$eval(".flNJKr .kdSqXr", (el) => el.innerText);
-      const price = await page.$eval(".lmgzsH .eNIEDh", (el) => el.innerText);
+      const title = await page.$eval(".kdSqXr", (el) => el.innerText);
+      const priceunf = await page.$eval(".eNIEDh", (el) => el.innerText);
+      const price = Number(priceunf.slice(1));
       await page.click(".gjVUFe");
       await page.waitForSelector(
         ".product__info-table > tbody > tr:nth-child(9)",
@@ -331,9 +380,9 @@ app.get(
         salt,
       ];
 
-      for (i = 2 + shift; i < 9 + shift; i++) {
+      for (let i = 2 + shift; i < 9 + shift; i++) {
         const unftext = await page.$eval(
-          `.product__info-table > tbody > tr: nth-child(${i}) > td:nth-child(2)`,
+          `.product__info-table > tbody > tr:nth-child(${i}) > td:nth-child(2)`,
           (el) => el.innerText,
         );
         if (unftext.includes("<")) {
@@ -352,13 +401,13 @@ app.get(
       const ingredient = new Ingredient({
         name: title,
         calories: calories,
-        fat: fat,
-        saturated: saturated,
-        carbohydrate: carbohydrate,
-        sugars: sugars,
-        fibre: fibre,
-        protein: protein,
-        salt: salt,
+        fat: categories[0],
+        saturated: categories[1],
+        carbohydrate: categories[2],
+        sugars: categories[3],
+        fibre: categories[4],
+        protein: categories[5],
+        salt: categories[6],
         cost: price,
         quantity: 1,
         meal: meal,
@@ -370,12 +419,26 @@ app.get(
         { $push: { ingredients: newing } },
         { returnDocument: "after" },
       ).exec();
-      res.json(newmeal);
+      const ogplan = await Plan.findById(plan).exec();
+      const meals = ogplan.meals;
+      for (const meal of meals) {
+        if (meal._id == newmeal._id) {
+          meal = newmeal;
+        }
+      }
+      let newplan = await Plan.findByIdAndUpdate(
+        plan,
+        {
+          $set: { meals: meals },
+        },
+        { returnDocument: "after" },
+      );
+      res.json(newplan);
     });
   }),
 );
 
-app.put("/meals/:mealid/:ingredientid", upload.any(), [
+app.put("/meals/:mealid/:ingredientid/:planid", upload.any(), [
   body("quantity")
     .exists({ checkFalsy: true })
     .withMessage("You must enter an amount")
@@ -399,7 +462,7 @@ app.put("/meals/:mealid/:ingredientid", upload.any(), [
     } else {
       let altingredients = meal.ingredients;
       let ingindx = altingredients.findIndex(
-        (element) => element._id === req.params.ingredientid,
+        (element) => element._id == req.params.ingredientid,
       );
       altingredients[ingindx].quantity = Number(req.body.quantity);
       const updmeal = await Meal.findByIdAndUpdate(
@@ -407,33 +470,86 @@ app.put("/meals/:mealid/:ingredientid", upload.any(), [
         { $set: { ingredients: altingredients } },
         { returnDocument: "after" },
       ).exec();
-      res.json(updmeal);
+      const ogplan = await Plan.findById(req.params.planid).exec();
+      const meals = ogplan.meals;
+      for (const meal of meals) {
+        if (meal._id == updmeal._id) {
+          meal = updmeal;
+        }
+      }
+      let newplan = await Plan.findByIdAndUpdate(
+        req.params.planid,
+        {
+          $set: { meals: meals },
+        },
+        { returnDocument: "after" },
+      );
+      res.json(newplan);
     }
   }),
 ]);
 
 app.delete(
-  "/meals/:mealid/:ingredientid",
+  "/meals/:mealid/:ingredientid/:planid",
   asyncHandler(async (req, res, next) => {
     let meal = await Meal.findById(req.params.mealid).exec();
     let altingredients = meal.ingredients;
     let ingindx = altingredients.findIndex(
-      (element) => element._id === req.params.ingredientid,
+      (element) => element._id == req.params.ingredientid,
     );
-    altingredients.splice(ingindx, 0);
+    altingredients.splice(ingindx, 1);
     const updmeal = await Meal.findByIdAndUpdate(
       req.params.mealid,
       { $set: { ingredients: altingredients } },
       { returnDocument: "after" },
     ).exec();
-    res.json(updmeal);
+    const ogplan = await Plan.findById(req.params.planid).exec();
+    const meals = ogplan.meals;
+    for (const meal of meals) {
+      if (meal._id == updmeal._id) {
+        meal = updmeal;
+      }
+    }
+    let newplan = await Plan.findByIdAndUpdate(
+      req.params.planid,
+      {
+        $set: { meals: meals },
+      },
+      { returnDocument: "after" },
+    );
+    res.json(newplan);
   }),
 );
 
 app.delete(
-  "/meals/:mealid",
+  "/meals/:mealid/:planid",
   asyncHandler(async (req, res, next) => {
-    await Meal.findByIdAndDelete(req.params.mealid).exec();
+    let plan = req.params.planid;
+    let ogmeal = req.params.mealid;
+    let ogplan = Plan.findById(plan).exec();
+    let meals = ogplan.meals;
+    let index;
+    for (const meal of meals) {
+      if (meal._id == ogmeal._id) {
+        index = meals.indexOf(meal);
+      }
+    }
+    meals.splice(index, 1);
+    let updplan = await Plan.findByIdAndUpdate(
+      plan,
+      {
+        $set: { meals: meals },
+      },
+      { returnDocument: "after" },
+    ).exec();
+    res.json(updplan);
+  }),
+);
+
+app.delete(
+  "/plans/:planid",
+  asyncHandler(async (req, res, next) => {
+    await await Plan.findByIdAndDelete(req.params.planid).exec();
     res.json("deleted");
   }),
 );
