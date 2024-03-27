@@ -127,12 +127,20 @@ app.post("/signup", upload.any(), [
       return value === req.body.password;
     })
     .withMessage("Passwords must match"),
+  body("goal", "Calorie goal must not be empty")
+    .custom((value) => {
+      const amount = Number(value);
+      const amountFloat = Number(amount.toFixed(0));
+      return amountFloat > 0;
+    })
+    .withMessage("Amount must be greater than 0"),
   asyncHandler(async (req, res, next) => {
     const result = validationResult(req);
 
     const user = new User({
       username: req.body.username,
       password: req.body.password,
+      goal: Number(req.body.goal),
     });
 
     if (!result.isEmpty()) {
@@ -143,11 +151,8 @@ app.post("/signup", upload.any(), [
       let salt = bcrypt.genSaltSync(10);
       let hash = bcrypt.hashSync(req.body.password, salt);
       user.password = hash;
-      await user.save();
-      const plan = new Plan({
-        user: user._id,
-      });
-      res.json(user);
+      let newuser = await user.save();
+      res.json(newuser);
     }
   }),
 ]);
@@ -195,11 +200,54 @@ app.post("/plan", upload.any(), [
         errors: errors.array(),
       });
     } else {
-      await plan.save();
-      res.json(plan);
+      let newplan = await plan.save();
+      res.json(newplan);
     }
   }),
 ]);
+
+app.put("/user/:userid", [
+  body("goal", "Calorie goal must not be empty")
+    .custom((value) => {
+      const amount = Number(value);
+      const amountFloat = Number(amount.toFixed(0));
+      return amountFloat > 0;
+    })
+    .withMessage("Amount must be greater than 0"),
+  asyncHandler(async (req, res, next) => {
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      res.json({
+        errors: errors.array(),
+      });
+      return;
+    } else {
+      const user = await User.findByIdAndUpdate(
+        req.params.userid,
+        { $set: { goal: Number(req.body.goal) } },
+        { returnDocument: "after" },
+      ).exec();
+      res.json(user);
+    }
+  }),
+]);
+
+app.get(
+  "/plans/:userid",
+  asyncHandler(async (req, res, next) => {
+    let plans = Plan.find({ user: req.params.userid }).exec();
+    res.json(plans);
+  }),
+);
+
+app.get(
+  "/user/:userid",
+  asyncHandler(async (req, res, next) => {
+    const user = await User.findById(req.params.userid).exec();
+    res.json(user);
+  }),
+);
 
 app.get(
   "/plan/:planid",
@@ -421,11 +469,10 @@ app.get(
       ).exec();
       const ogplan = await Plan.findById(plan).exec();
       const meals = ogplan.meals;
-      for (const meal of meals) {
-        if (meal._id == newmeal._id) {
-          meal = newmeal;
-        }
-      }
+      const index = meals.findIndex((object) => {
+        return object._id.toString() == newmeal._id.toString();
+      });
+      meals[index] = newmeal;
       let newplan = await Plan.findByIdAndUpdate(
         plan,
         {
@@ -444,7 +491,7 @@ app.put("/meals/:mealid/:ingredientid/:planid", upload.any(), [
     .withMessage("You must enter an amount")
     .custom((value) => {
       const amount = Number(value);
-      const amountFloat = amount.toFixed(2);
+      const amountFloat = Number(amount.toFixed(2));
       return amountFloat > 0 && amountFloat <= 10;
     })
     .withMessage("Serving sizes limited between 0 and 10"),
@@ -456,7 +503,7 @@ app.put("/meals/:mealid/:ingredientid/:planid", upload.any(), [
 
     if (!errors.isEmpty()) {
       res.json({
-        errors: erros.array(),
+        errors: errors.array(),
       });
       return;
     } else {
@@ -472,11 +519,10 @@ app.put("/meals/:mealid/:ingredientid/:planid", upload.any(), [
       ).exec();
       const ogplan = await Plan.findById(req.params.planid).exec();
       const meals = ogplan.meals;
-      for (const meal of meals) {
-        if (meal._id == updmeal._id) {
-          meal = updmeal;
-        }
-      }
+      const index = meals.findIndex((object) => {
+        return object._id.toString() == updmeal._id.toString();
+      });
+      meals[index] = updmeal;
       let newplan = await Plan.findByIdAndUpdate(
         req.params.planid,
         {
@@ -505,11 +551,10 @@ app.delete(
     ).exec();
     const ogplan = await Plan.findById(req.params.planid).exec();
     const meals = ogplan.meals;
-    for (const meal of meals) {
-      if (meal._id == updmeal._id) {
-        meal = updmeal;
-      }
-    }
+    const index = meals.findIndex((object) => {
+      return object._id.toString() == updmeal._id.toString();
+    });
+    meals[index] = updmeal;
     let newplan = await Plan.findByIdAndUpdate(
       req.params.planid,
       {
@@ -526,14 +571,11 @@ app.delete(
   asyncHandler(async (req, res, next) => {
     let plan = req.params.planid;
     let ogmeal = req.params.mealid;
-    let ogplan = Plan.findById(plan).exec();
+    let ogplan = await Plan.findById(plan).exec();
     let meals = ogplan.meals;
-    let index;
-    for (const meal of meals) {
-      if (meal._id == ogmeal._id) {
-        index = meals.indexOf(meal);
-      }
-    }
+    const index = meals.findIndex((object) => {
+      return object._id.toString() == ogmeal.toString();
+    });
     meals.splice(index, 1);
     let updplan = await Plan.findByIdAndUpdate(
       plan,
@@ -549,7 +591,7 @@ app.delete(
 app.delete(
   "/plans/:planid",
   asyncHandler(async (req, res, next) => {
-    await await Plan.findByIdAndDelete(req.params.planid).exec();
+    await Plan.findByIdAndDelete(req.params.planid).exec();
     res.json("deleted");
   }),
 );
