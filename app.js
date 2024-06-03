@@ -195,10 +195,9 @@ app.post("/plan", upload.any(), [
       user: req.body.user,
     });
     if (!errors.isEmpty()) {
-      return res.json({
-        plan: plan,
-        errors: errors.array(),
-      });
+      return res
+        .status(404)
+        .json({ message: "Incorrect username or password", status: 404 });
     } else {
       let newplan = await plan.save();
       res.json(newplan);
