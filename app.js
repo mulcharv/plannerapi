@@ -236,7 +236,12 @@ app.put("/user/:userid", [
 app.get(
   "/plans/:userid",
   asyncHandler(async (req, res, next) => {
-    let plans = Plan.find({ user: req.params.userid }).exec();
+    const plans = await Plan.find({ user: req.params.userid }).exec();
+
+    if (plans === null) {
+      return res.status(404).json({ message: "Plans not found", status: 404 });
+    }
+
     res.json(plans);
   }),
 );
@@ -245,6 +250,11 @@ app.get(
   "/user/:userid",
   asyncHandler(async (req, res, next) => {
     const user = await User.findById(req.params.userid).exec();
+
+    if (user === null) {
+      return res.status(404).json({ message: "User not found", status: 404 });
+    }
+
     res.json(user);
   }),
 );
@@ -253,6 +263,11 @@ app.get(
   "/plan/:planid",
   asyncHandler(async (req, res, next) => {
     const plan = await Plan.findById(req.params.planid).exec();
+
+    if (plan === null) {
+      return res.status(404).json({ message: "Plan not found", status: 404 });
+    }
+
     res.json(plan);
   }),
 );

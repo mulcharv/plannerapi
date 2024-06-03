@@ -28,6 +28,11 @@ PlanSchema.virtual("totals").get(function () {
   let totfats = 0;
   let totcarbs = 0;
   let totprot = 0;
+  let totcost = 0;
+  let totsat = 0;
+  let totsug = 0;
+  let totfibre = 0;
+  let totsalt = 0;
   let meals = this.meals;
   for (const meal of meals) {
     let ingredients = meal.ingredients;
@@ -36,6 +41,11 @@ PlanSchema.virtual("totals").get(function () {
       totfats += ingredient.fat * 9;
       totcarbs += ingredient.carbohydrate * 4;
       totprot += ingredient.protein * 4;
+      totcost += ingredient.cost;
+      totsat += ingredient.saturated;
+      totsug += ingredient.sugars;
+      totfibre += ingredient.fibre;
+      totsalt += ingredient.salt;
     }
   }
   let percarbs = (totcarbs / totcalories) * 100;
@@ -46,6 +56,14 @@ PlanSchema.virtual("totals").get(function () {
     percarbs: percarbs,
     perfats: perfats,
     perprot: perprot,
+    totalcost: totcost,
+    totalcarbs: totcarbs,
+    totalfats: totfats,
+    totalprot: totprot,
+    totalsat: totsat,
+    totalsug: totsug,
+    totalfibre: totfibre,
+    totalsalt: totsalt,
   };
   return info;
 });
