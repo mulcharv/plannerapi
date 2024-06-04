@@ -344,10 +344,9 @@ app.post("/meal/:planid", upload.any(), [
       user: req.body.user,
     });
     if (!errors.isEmpty()) {
-      return res.json({
-        meal: meal,
-        errors: errors.array(),
-      });
+      return res
+        .status(404)
+        .json({ message: "Please enter a meal name", status: 404 });
     } else {
       let savedmeal = await meal.save();
       let plan = await Plan.findByIdAndUpdate(
