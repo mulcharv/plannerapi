@@ -339,6 +339,7 @@ app.post("/meal/:planid", upload.any(), [
 
     const meal = new Meal({
       name: req.body.mealname,
+      ingredients: [],
       plan: req.params.planid,
       user: req.body.user,
     });
