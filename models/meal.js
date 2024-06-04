@@ -16,6 +16,7 @@ const MealSchema = new Schema(
 
 MealSchema.virtual("totals").get(function () {
   let totcalories = 0;
+  let ingredients = this.ingredients;
   for (const ingredient of ingredients) {
     totcalories += ingredient.calories;
   }
