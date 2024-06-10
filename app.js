@@ -279,7 +279,7 @@ app.get(
 
     puppeteer
       .launch({
-        headless: false,
+        headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       })
       .then(async function (browser) {
