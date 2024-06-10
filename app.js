@@ -277,7 +277,7 @@ app.get(
     const itemtype = req.params.itemtype;
     const pageno = req.params.pageid;
 
-    puppeteer.launch().then(async function (browser) {
+    puppeteer.launch({ headless: false }).then(async function (browser) {
       const page = await browser.newPage();
       page.setUserAgent(ua);
       await page.goto(
