@@ -506,6 +506,7 @@ app.get(
           },
           { returnDocument: "after" },
         );
+        console.log(newplan);
         res.json(newplan);
       });
   }),
