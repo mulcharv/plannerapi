@@ -373,134 +373,141 @@ app.get(
     const link = req.params.itemlink;
     const meal = req.params.mealid;
     const plan = req.params.planid;
-    puppeteer.launch().then(async function (browser) {
-      const page = await browser.newPage();
-      page.setUserAgent(ua);
-      await page.goto(`https://www.tesco.com/groceries/en-GB/products/${link}`);
-      const acceptables = [
-        "Fresh Food",
-        "Bakery",
-        "Frozen Food",
-        "Treats & Snacks",
-        "Food Cupboard",
-        "Drinks",
-      ];
-      const subtype = await page.$eval(".eZJvMx", (el) => el.innerText);
-      let included = false;
-      for (const allowed of acceptables) {
-        if (subtype == allowed) {
-          included = true;
+    puppeteer
+      .launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      })
+      .then(async function (browser) {
+        const page = await browser.newPage();
+        page.setUserAgent(ua);
+        await page.goto(
+          `https://www.tesco.com/groceries/en-GB/products/${link}`,
+        );
+        const acceptables = [
+          "Fresh Food",
+          "Bakery",
+          "Frozen Food",
+          "Treats & Snacks",
+          "Food Cupboard",
+          "Drinks",
+        ];
+        const subtype = await page.$eval(".eZJvMx", (el) => el.innerText);
+        let included = false;
+        for (const allowed of acceptables) {
+          if (subtype == allowed) {
+            included = true;
+          }
         }
-      }
-      if (included == false) {
-        res
-          .status(403)
-          .json({ message: "Not an accepted food or drink for meal plan" });
-      }
-      const title = await page.$eval(".kdSqXr", (el) => el.innerText);
-      const priceunf = await page.$eval(".eNIEDh", (el) => el.innerText);
-      const price = Number(priceunf.slice(1));
-      await page.click(".gjVUFe");
-      await page.waitForSelector(
-        ".product__info-table > tbody > tr:nth-child(9)",
-      );
-      const size = await page.$eval(
-        ".product__info-table > thead > tr > th:nth-child(3)",
-        (el) => el.innerText,
-      );
-      const second = await page.$eval(
-        ".product__info-table > tbody > tr:nth-child(1) > td:nth-child(2)",
-        (el) => el.innerText,
-      );
-      let calories;
-      let shift = 0;
-      if (second.includes("/")) {
-        let start = second.indexOf("/");
-        let finish = second.indexOf("kcal");
-        calories = Number(second.slice(start + 1, finish));
-      }
-      if (!second.includes("/")) {
-        shift += 1;
-        const secondalt = await page.$eval(
-          ".product__info-table > tbody > tr:nth-child(2) > td:nth-child(2)",
+        if (included == false) {
+          res
+            .status(403)
+            .json({ message: "Not an accepted food or drink for meal plan" });
+        }
+        const title = await page.$eval(".kdSqXr", (el) => el.innerText);
+        const priceunf = await page.$eval(".eNIEDh", (el) => el.innerText);
+        const price = Number(priceunf.slice(1));
+        await page.click(".gjVUFe");
+        await page.waitForSelector(
+          ".product__info-table > tbody > tr:nth-child(9)",
+        );
+        const size = await page.$eval(
+          ".product__info-table > thead > tr > th:nth-child(3)",
           (el) => el.innerText,
         );
-        let finish = secondalt.indexOf("kcal");
-        calories = Number(secondalt.slice(0, finish));
-      }
-
-      let fat;
-      let saturated;
-      let carbohydrate;
-      let sugars;
-      let fibre;
-      let protein;
-      let salt;
-
-      let categories = [
-        fat,
-        saturated,
-        carbohydrate,
-        sugars,
-        fibre,
-        protein,
-        salt,
-      ];
-
-      for (let i = 2 + shift; i < 9 + shift; i++) {
-        const unftext = await page.$eval(
-          `.product__info-table > tbody > tr:nth-child(${i}) > td:nth-child(2)`,
+        const second = await page.$eval(
+          ".product__info-table > tbody > tr:nth-child(1) > td:nth-child(2)",
           (el) => el.innerText,
         );
-        if (unftext.includes("<")) {
-          let start = 1;
-          let finish = unftext.indexOf("g");
-          categories[i - 2 - shift] = Number(unftext.slice(start, finish));
-        } else {
-          let start = 0;
-          let finish = unftext.indexOf("g");
-          categories[i - 2 - shift] = Number(unftext.slice(start, finish));
+        let calories;
+        let shift = 0;
+        if (second.includes("/")) {
+          let start = second.indexOf("/");
+          let finish = second.indexOf("kcal");
+          calories = Number(second.slice(start + 1, finish));
         }
-      }
+        if (!second.includes("/")) {
+          shift += 1;
+          const secondalt = await page.$eval(
+            ".product__info-table > tbody > tr:nth-child(2) > td:nth-child(2)",
+            (el) => el.innerText,
+          );
+          let finish = secondalt.indexOf("kcal");
+          calories = Number(secondalt.slice(0, finish));
+        }
 
-      await browser.close();
+        let fat;
+        let saturated;
+        let carbohydrate;
+        let sugars;
+        let fibre;
+        let protein;
+        let salt;
 
-      const ingredient = new Ingredient({
-        name: title,
-        calories: calories,
-        fat: categories[0],
-        saturated: categories[1],
-        carbohydrate: categories[2],
-        sugars: categories[3],
-        fibre: categories[4],
-        protein: categories[5],
-        salt: categories[6],
-        cost: price,
-        quantity: 1,
-        meal: meal,
-        size: size,
+        let categories = [
+          fat,
+          saturated,
+          carbohydrate,
+          sugars,
+          fibre,
+          protein,
+          salt,
+        ];
+
+        for (let i = 2 + shift; i < 9 + shift; i++) {
+          const unftext = await page.$eval(
+            `.product__info-table > tbody > tr:nth-child(${i}) > td:nth-child(2)`,
+            (el) => el.innerText,
+          );
+          if (unftext.includes("<")) {
+            let start = 1;
+            let finish = unftext.indexOf("g");
+            categories[i - 2 - shift] = Number(unftext.slice(start, finish));
+          } else {
+            let start = 0;
+            let finish = unftext.indexOf("g");
+            categories[i - 2 - shift] = Number(unftext.slice(start, finish));
+          }
+        }
+
+        await browser.close();
+
+        const ingredient = new Ingredient({
+          name: title,
+          calories: calories,
+          fat: categories[0],
+          saturated: categories[1],
+          carbohydrate: categories[2],
+          sugars: categories[3],
+          fibre: categories[4],
+          protein: categories[5],
+          salt: categories[6],
+          cost: price,
+          quantity: 1,
+          meal: meal,
+          size: size,
+        });
+        const newing = await ingredient.save();
+        const newmeal = await Meal.findByIdAndUpdate(
+          meal,
+          { $push: { ingredients: newing } },
+          { returnDocument: "after" },
+        ).exec();
+        const ogplan = await Plan.findById(plan).exec();
+        const meals = ogplan.meals;
+        const index = meals.findIndex((object) => {
+          return object._id.toString() == newmeal._id.toString();
+        });
+        meals[index] = newmeal;
+        let newplan = await Plan.findByIdAndUpdate(
+          plan,
+          {
+            $set: { meals: meals },
+          },
+          { returnDocument: "after" },
+        );
+        res.json(newplan);
       });
-      const newing = await ingredient.save();
-      const newmeal = await Meal.findByIdAndUpdate(
-        meal,
-        { $push: { ingredients: newing } },
-        { returnDocument: "after" },
-      ).exec();
-      const ogplan = await Plan.findById(plan).exec();
-      const meals = ogplan.meals;
-      const index = meals.findIndex((object) => {
-        return object._id.toString() == newmeal._id.toString();
-      });
-      meals[index] = newmeal;
-      let newplan = await Plan.findByIdAndUpdate(
-        plan,
-        {
-          $set: { meals: meals },
-        },
-        { returnDocument: "after" },
-      );
-      res.json(newplan);
-    });
   }),
 );
 
