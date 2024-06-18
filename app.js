@@ -285,9 +285,22 @@ app.get(
       .then(async function (browser) {
         const page = await browser.newPage();
         page.setUserAgent(ua);
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+          if (
+            req.resourceType() == "stylesheet" ||
+            req.resourceType() == "font" ||
+            req.resourceType() === "image"
+          ) {
+            req.abort();
+          } else {
+            req.continue();
+          }
+        });
         await page.goto(
           `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
         );
+        await page.screenshot({ path: "no-images.png", fullPage: true });
         const itemlist = await page.$$eval(
           ".hXcydL > .xZAYu",
           function (itemnames) {
