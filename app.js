@@ -288,11 +288,14 @@ app.get(
         await page.goto(
           `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
         );
-        const itemlist = await page.$$eval(".xZAYu", function (itemnames) {
-          return itemnames.map(function (itemname) {
-            return itemname.innerText;
-          });
-        });
+        const itemlist = await page.$$eval(
+          ".hXcydL > .xZAYu",
+          function (itemnames) {
+            return itemnames.map(function (itemname) {
+              return itemname.innerText;
+            });
+          },
+        );
         const pricelist = await page.$$eval(
           ".beans-price__text",
           function (itemprices) {
@@ -301,15 +304,18 @@ app.get(
             });
           },
         );
-        const linklist = await page.$$eval(".hXcydL", function (itemlinks) {
-          return itemlinks.map(function (itemlink) {
-            let href = itemlink.href;
-            let prodindx = href.indexOf("products");
-            let start = prodindx + 9;
-            let productno = href.slice(start);
-            return productno;
-          });
-        });
+        const linklist = await page.$$eval(
+          ".gbIAbl > .hXcydL",
+          function (itemlinks) {
+            return itemlinks.map(function (itemlink) {
+              let href = itemlink.href;
+              let prodindx = href.indexOf("products");
+              let start = prodindx + 9;
+              let productno = href.slice(start);
+              return productno;
+            });
+          },
+        );
 
         let iteminfo = {
           names: itemlist,
