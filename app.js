@@ -277,73 +277,50 @@ app.get(
     const itemtype = req.params.itemtype;
     const pageno = req.params.pageid;
 
-    puppeteer
-      .launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      })
-      .then(async function (browser) {
-        const page = await browser.newPage();
-        page.setUserAgent(ua);
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          if (
-            req.resourceType() == "stylesheet" ||
-            req.resourceType() == "font" ||
-            req.resourceType() === "image"
-          ) {
-            req.abort();
-          } else {
-            req.continue();
-          }
-        });
-        await page.goto(
-          `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
-        );
-        await page.screenshot({ path: "no-images.png", fullPage: true });
-        const itemlist = await page.$$eval(
-          ".hXcydL > .xZAYu",
-          function (itemnames) {
-            return itemnames.map(function (itemname) {
-              return itemname.innerText;
-            });
+    try {
+      const response = await axios.get(
+        `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
+        {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
           },
-        );
-        const pricelist = await page.$$eval(
-          ".beans-price__text",
-          function (itemprices) {
-            return itemprices.map(function (itemprice) {
-              return itemprice.innerText;
-            });
-          },
-        );
-        const linklist = await page.$$eval(
-          ".gbIAbl > .hXcydL",
-          function (itemlinks) {
-            return itemlinks.map(function (itemlink) {
-              let href = itemlink.href;
-              let prodindx = href.indexOf("products");
-              let start = prodindx + 9;
-              let productno = href.slice(start);
-              return productno;
-            });
-          },
-        );
+        },
+      );
 
-        let iteminfo = {
-          names: itemlist,
-          prices: pricelist,
-          links: linklist,
-        };
+      const html = response.data;
+      const $ = cheerio.load(html);
 
-        await browser.close();
+      const itemlist = $(".hXcydL > .xZAYu")
+        .map((i, element) => $(element).text())
+        .get();
+      const pricelist = $(".beans-price__text")
+        .map((i, element) => $(element).text())
+        .get();
+      const linklist = $(".gbIAbl > .hXcydL")
+        .map((i, element) => {
+          const href = $(element).attr("href");
+          const prodindx = href.indexOf("products");
+          const start = prodindx + 9;
+          const productno = href.slice(start);
+          return productno;
+        })
+        .get();
 
-        if (itemlist.length == 0) {
-          res.status(404).json({ message: "No results", status: 404 });
-        } else {
-          res.json(iteminfo);
-        }
-      });
+      let iteminfo = {
+        names: itemlist,
+        prices: pricelist,
+        links: linklist,
+      };
+
+      if (itemlist.length == 0) {
+        res.status(404).json({ message: "No results", status: 404 });
+      } else {
+        res.json(iteminfo);
+      }
+    } catch (error) {
+      next(error);
+    }
   }),
 );
 
