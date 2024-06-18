@@ -285,7 +285,7 @@ app.get(
       .then(async function (browser) {
         const page = await browser.newPage();
         page.setUserAgent(ua);
-        await page.goto(
+        page.goto(
           `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
         );
         const itemlist = await page.$$eval(
