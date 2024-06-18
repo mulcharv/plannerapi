@@ -278,6 +278,7 @@ app.get(
   asyncHandler(async (req, res, next) => {
     const itemtype = req.params.itemtype;
     const pageno = req.params.pageid;
+    console.log("");
 
     try {
       const response = await axios.get(
