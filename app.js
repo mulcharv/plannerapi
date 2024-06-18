@@ -300,6 +300,7 @@ app.get(
         await page.goto(
           `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
         );
+        await page.screenshot({ path: "no-images.png", fullPage: true });
         const itemlist = await page.$$eval(
           ".hXcydL > .xZAYu",
           function (itemnames) {
