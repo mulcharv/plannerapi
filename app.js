@@ -367,7 +367,7 @@ app.get(
 
     await page.goto(
       `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageid}`,
-      { waitUntil: "domcontentloaded" },
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     const iteminfo = await page.evaluate(() => {
