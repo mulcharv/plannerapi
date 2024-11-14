@@ -348,9 +348,13 @@ app.get(
 
     const browser = await puppeteer.launch({
       headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-http2"],
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     const page = await browser.newPage();
+
+    await page.setExtraHTTPHeaders({
+      "Upgrade-Insecure-Requests": "1",
+    });
 
     await page.setRequestInterception(true);
     page.on("request", (req) => {
