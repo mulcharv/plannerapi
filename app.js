@@ -301,34 +301,25 @@ app.get(
           `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
         );
         await page.screenshot({ path: "no-images.png", fullPage: true });
-        const itemlist = await page.$$eval(
-          ".hXcydL > .xZAYu",
-          function (itemnames) {
-            return itemnames.map(function (itemname) {
-              return itemname.innerText;
-            });
-          },
-        );
-        const pricelist = await page.$$eval(
-          ".beans-price__text",
-          function (itemprices) {
-            return itemprices.map(function (itemprice) {
-              return itemprice.innerText;
-            });
-          },
-        );
-        const linklist = await page.$$eval(
-          ".gbIAbl > .hXcydL",
-          function (itemlinks) {
-            return itemlinks.map(function (itemlink) {
-              let href = itemlink.href;
-              let prodindx = href.indexOf("products");
-              let start = prodindx + 9;
-              let productno = href.slice(start);
-              return productno;
-            });
-          },
-        );
+        const itemlist = await page.$$eval(".bsLJsh", function (itemnames) {
+          return itemnames.map(function (itemname) {
+            return itemname.innerText;
+          });
+        });
+        const pricelist = await page.$$eval(".gyHOWz", function (itemprices) {
+          return itemprices.map(function (itemprice) {
+            return itemprice.innerText;
+          });
+        });
+        const linklist = await page.$$eval(".gRXcDF", function (itemlinks) {
+          return itemlinks.map(function (itemlink) {
+            let href = itemlink.href;
+            let prodindx = href.indexOf("products");
+            let start = prodindx + 9;
+            let productno = href.slice(start);
+            return productno;
+          });
+        });
 
         let iteminfo = {
           names: itemlist,
