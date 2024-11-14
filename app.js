@@ -287,11 +287,15 @@ app.get(
         page.setUserAgent(ua);
         await page.setRequestInterception(true);
         page.on("request", (req) => {
-          if (
-            req.resourceType() == "stylesheet" ||
-            req.resourceType() == "font" ||
-            req.resourceType() === "image"
-          ) {
+          const blockedResourceTypes = [
+            "stylesheet",
+            "font",
+            "image",
+            "media",
+            "xhr",
+            "fetch",
+          ];
+          if (blockedResourceTypes.includes(req.resourceType())) {
             req.abort();
           } else {
             req.continue();
