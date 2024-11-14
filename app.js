@@ -369,9 +369,9 @@ app.get(
       `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageid}`,
     );
 
-    await page.waitForSelector(".bsLJsh");
-    await page.waitForSelector(".gyHOWz");
-    await page.waitForSelector(".gRXcDF");
+    await page.waitForSelector(".bsLJsh", { timeout: 10000 });
+    await page.waitForSelector(".gyHOWz", { timeout: 10000 });
+    await page.waitForSelector(".gRXcDF", { timeout: 10000 });
 
     const iteminfo = await page.evaluate(() => {
       const names = Array.from(document.querySelectorAll(".bsLJsh")).map(
