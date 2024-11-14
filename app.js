@@ -271,74 +271,126 @@ app.get(
   }),
 );
 
+// app.get(
+//   "/item/:itemtype/:pageid",
+//   asyncHandler(async (req, res, next) => {
+//     const itemtype = req.params.itemtype;
+//     const pageno = req.params.pageid;
+
+//     puppeteer
+//       .launch({
+//         headless: true,
+//         args: ["--no-sandbox", "--disable-setuid-sandbox"],
+//       })
+//       .then(async function (browser) {
+//         const page = await browser.newPage();
+//         page.setUserAgent(ua);
+//         await page.setRequestInterception(true);
+//         page.on("request", (req) => {
+//           const blockedResourceTypes = [
+//             "stylesheet",
+//             "font",
+//             "image",
+//             "media",
+//             "xhr",
+//             "fetch",
+//           ];
+//           if (blockedResourceTypes.includes(req.resourceType())) {
+//             req.abort();
+//           } else {
+//             req.continue();
+//           }
+//         });
+//         await page.goto(
+//           `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
+//         );
+//         await page.screenshot({ path: "no-images.png", fullPage: true });
+//         const itemlist = await page.$$eval(".bsLJsh", function (itemnames) {
+//           return itemnames.map(function (itemname) {
+//             return itemname.innerText;
+//           });
+//         });
+//         const pricelist = await page.$$eval(".gyHOWz", function (itemprices) {
+//           return itemprices.map(function (itemprice) {
+//             return itemprice.innerText;
+//           });
+//         });
+//         const linklist = await page.$$eval(".gRXcDF", function (itemlinks) {
+//           return itemlinks.map(function (itemlink) {
+//             let href = itemlink.href;
+//             let prodindx = href.indexOf("products");
+//             let start = prodindx + 9;
+//             let productno = href.slice(start);
+//             return productno;
+//           });
+//         });
+
+//         let iteminfo = {
+//           names: itemlist,
+//           prices: pricelist,
+//           links: linklist,
+//         };
+
+//         await browser.close();
+
+//         if (itemlist.length == 0) {
+//           res.status(404).json({ message: "No results", status: 404 });
+//         } else {
+//           res.json(iteminfo);
+//         }
+//       });
+//   }),
+// );
 app.get(
   "/item/:itemtype/:pageid",
   asyncHandler(async (req, res, next) => {
-    const itemtype = req.params.itemtype;
-    const pageno = req.params.pageid;
+    const { itemtype, pageid } = req.params;
 
-    puppeteer
-      .launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      })
-      .then(async function (browser) {
-        const page = await browser.newPage();
-        page.setUserAgent(ua);
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          const blockedResourceTypes = [
-            "stylesheet",
-            "font",
-            "image",
-            "media",
-            "xhr",
-            "fetch",
-          ];
-          if (blockedResourceTypes.includes(req.resourceType())) {
-            req.abort();
-          } else {
-            req.continue();
-          }
-        });
-        await page.goto(
-          `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageno}`,
-        );
-        await page.screenshot({ path: "no-images.png", fullPage: true });
-        const itemlist = await page.$$eval(".bsLJsh", function (itemnames) {
-          return itemnames.map(function (itemname) {
-            return itemname.innerText;
-          });
-        });
-        const pricelist = await page.$$eval(".gyHOWz", function (itemprices) {
-          return itemprices.map(function (itemprice) {
-            return itemprice.innerText;
-          });
-        });
-        const linklist = await page.$$eval(".gRXcDF", function (itemlinks) {
-          return itemlinks.map(function (itemlink) {
-            let href = itemlink.href;
-            let prodindx = href.indexOf("products");
-            let start = prodindx + 9;
-            let productno = href.slice(start);
-            return productno;
-          });
-        });
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const page = await browser.newPage();
 
-        let iteminfo = {
-          names: itemlist,
-          prices: pricelist,
-          links: linklist,
-        };
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      if (
+        ["stylesheet", "font", "image", "media", "xhr", "fetch"].includes(
+          req.resourceType(),
+        )
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
 
-        await browser.close();
+    await page.goto(
+      `https://www.tesco.com/groceries/en-GB/search?query=${itemtype}&page=${pageid}`,
+      { waitUntil: "domcontentloaded" },
+    );
 
-        if (itemlist.length == 0) {
-          res.status(404).json({ message: "No results", status: 404 });
-        } else {
-          res.json(iteminfo);
-        }
-      });
+    const iteminfo = await page.evaluate(() => {
+      const names = Array.from(document.querySelectorAll(".bsLJsh")).map(
+        (el) => el.innerText,
+      );
+      const prices = Array.from(document.querySelectorAll(".gyHOWz")).map(
+        (el) => el.innerText,
+      );
+      const links = Array.from(document.querySelectorAll(".gRXcDF")).map(
+        (el) => el.href.split("products/")[1].split("?")[0],
+      );
+
+      return { names, prices, links };
+    });
+
+    await browser.close();
+
+    if (iteminfo.names.length === 0) {
+      res.status(404).json({ message: "No results", status: 404 });
+    } else {
+      res.json(iteminfo);
+    }
   }),
 );
 
